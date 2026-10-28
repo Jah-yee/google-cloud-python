@@ -4,6 +4,13 @@
 
 [1]: https://pypi.org/project/google-api-core/#history
 
+## [2.43.2](https://github.com/googleapis/google-cloud-python/compare/google-api-core-v2.43.1...google-api-core-v2.43.2) (2026-10-28)
+
+
+### Bug Fixes
+
+* **google-api-core:** align OpenTelemetry span names, kinds, and T3 endpoint attributes with spec ([#18866](https://github.com/googleapis/google-cloud-python/issues/18866)) ([2a10196](https://github.com/googleapis/google-cloud-python/commit/2a1019643da54baae33e1737ee1506de178aa857))
+
 ## [2.43.1](https://github.com/googleapis/google-cloud-python/compare/google-api-core-v2.43.0...google-api-core-v2.43.1) (2026-10-28)
 
 
