@@ -137,3 +137,65 @@ def test_structured_log_formatter():
     assert parsed_msg["severity"] == "DEBUG"
     assert parsed_msg["message"] == "This is a test message."
     assert parsed_msg["rpcName"] == "bar"
+
+
+def test_structured_log_formatter_json_fields_and_wildcard_metadata():
+    record = logging.LogRecord(
+        name="google.cloud.secretmanager_v1",
+        level=logging.ERROR,
+        msg="RPC failed for /google.cloud.secretmanager.v1.SecretManagerService/GetSecret",
+        pathname="some/path",
+        lineno=42,
+        args=None,
+        exc_info=None,
+    )
+    extra_fields = {
+        "rpcName": "/google.cloud.secretmanager.v1.SecretManagerService/GetSecret",
+        "rpc.system.name": "grpc",
+        "rpc.response.status_code": "NOT_FOUND",
+        "error.type": "RESOURCE_NOT_FOUND",
+        "status.message": "Secret not found",
+        "gcp.errors.domain": "googleapis.com",
+        "gcp.errors.metadata.service": "secretmanager.googleapis.com",
+        "gcp.errors.metadata.consumer": "projects/123",
+        "trace_id": "0123456789abcdef0123456789abcdef",
+        "span_id": "0123456789abcdef",
+        "logging.googleapis.com/trace": "0123456789abcdef0123456789abcdef",
+        "logging.googleapis.com/spanId": "0123456789abcdef",
+        "logging.googleapis.com/trace_sampled": True,
+    }
+    for k, v in extra_fields.items():
+        setattr(record, k, v)
+    record.json_fields = dict(extra_fields)
+    record.unrecognized_field = "should_be_ignored"
+
+    formatted_msg = StructuredLogFormatter().format(record)
+    parsed_msg = json.loads(formatted_msg)
+
+    for k, v in extra_fields.items():
+        assert parsed_msg[k] == v
+    assert "json_fields" not in parsed_msg
+    assert "unrecognized_field" not in parsed_msg
+
+
+def test_structured_log_formatter_json_fields_only():
+    record = logging.LogRecord(
+        name="google.cloud.secretmanager_v1",
+        level=logging.DEBUG,
+        msg="Attempt failed",
+        pathname="some/path",
+        lineno=10,
+        args=None,
+        exc_info=None,
+    )
+    record.json_fields = {
+        "custom_from_json_fields": "preserved",
+        "none_value": None,
+    }
+
+    formatted_msg = StructuredLogFormatter().format(record)
+    parsed_msg = json.loads(formatted_msg)
+
+    assert parsed_msg["custom_from_json_fields"] == "preserved"
+    assert "none_value" not in parsed_msg
+    assert "json_fields" not in parsed_msg

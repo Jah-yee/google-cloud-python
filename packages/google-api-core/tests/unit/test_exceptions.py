@@ -352,6 +352,12 @@ def test_error_details_from_rest_response():
         " 'service': 'translate.googleapis.com'},"
         " 'reason': 'SERVICE_DISABLED'}]"
     )
+    assert exception.reason == "SERVICE_DISABLED"
+    assert exception.domain == "googleapis.com"
+    assert exception.metadata == {
+        "consumer": "projects/455411330361",
+        "service": "translate.googleapis.com",
+    }
 
 
 def test_error_details_from_v1_rest_response():
@@ -434,3 +440,50 @@ def test_from_grpc_error_misleading_404():
     assert exception.grpc_status_code == grpc.StatusCode.UNIMPLEMENTED
     assert "Received http2 header with status: 404" in exception.message
     assert "api_endpoint" in exception.message
+
+
+def test_extract_status_code_from_exceptions():
+    import types
+
+    assert exceptions._extract_status_code(None) == ""
+    assert exceptions._extract_status_code(None, default="UNAVAILABLE") == "UNAVAILABLE"
+    assert (
+        exceptions._extract_status_code(exceptions.NotFound("missing")) == "NOT_FOUND"
+    )
+    assert exceptions._extract_status_code(
+        exceptions.RetryError(
+            "retry failed", cause=exceptions.ServiceUnavailable("down")
+        )
+    ) == ("UNAVAILABLE" if grpc is not None else "SERVICE_UNAVAILABLE")
+    # callable code returning object with .name
+    exc_callable = types.SimpleNamespace(
+        code=lambda: types.SimpleNamespace(name="DEADLINE_EXCEEDED")
+    )
+    assert exceptions._extract_status_code(exc_callable) == "DEADLINE_EXCEEDED"
+
+    # callable code raising exception falls back to default or class name
+    def bad_code():
+        raise RuntimeError("boom")
+
+    assert (
+        exceptions._extract_status_code(types.SimpleNamespace(code=bad_code))
+        == "SimpleNamespace"
+    )
+    assert (
+        exceptions._extract_status_code(
+            types.SimpleNamespace(code=bad_code), default="UNAVAILABLE"
+        )
+        == "UNAVAILABLE"
+    )
+
+    # integer status code mapped via _INT_TO_GRPC_CODE
+    if grpc is not None:
+        assert (
+            exceptions._extract_status_code(types.SimpleNamespace(code=5))
+            == "NOT_FOUND"
+        )
+    assert exceptions._extract_status_code(types.SimpleNamespace(code=999)) == "999"
+    assert exceptions._extract_status_code(ValueError("bad val")) == "ValueError"
+    assert (
+        exceptions._extract_status_code(ValueError("bad val"), default="503") == "503"
+    )

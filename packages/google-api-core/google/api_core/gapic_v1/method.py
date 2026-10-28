@@ -23,7 +23,7 @@ import enum
 import functools
 from typing import Any, List, Optional, Tuple
 
-from google.api_core import _observability, grpc_helpers
+from google.api_core import _observability, exceptions, grpc_helpers
 from google.api_core.gapic_v1 import client_info
 from google.api_core.gapic_v1.client_info import METRICS_METADATA_KEY
 from google.api_core.timeout import TimeToDeadlineTimeout
@@ -126,48 +126,7 @@ def _extract_rpc_identity(
     return method_str, service, method
 
 
-def _extract_status_code(exc: Optional[BaseException]) -> str:
-    """Extract canonical status code name string from an exception.
-
-    Status code name strings are resolved by inspecting the following locations:
-    * Chained exceptions: Unwraps RetryError or __cause__ to the root exception.
-    * Enum & code attributes: Inspects .grpc_status_code on GoogleAPICallError or .code on gRPC errors.
-    * Integer status codes: Maps raw gRPC integer status codes to canonical enum names.
-    * Fallback: Defaults to the exception class name for standard Python errors.
-
-    Args:
-        exc (Optional[BaseException]): The exception to extract the status code name from.
-
-    Returns:
-        str: The canonical status code name (e.g. "NOT_FOUND", "UNAVAILABLE") or class name.
-    """
-    if exc is None:
-        return ""
-
-    # 1. Unwrap chained exceptions: unwrap RetryError or __cause__ to the root failure
-    target = getattr(exc, "cause", None) or getattr(exc, "__cause__", None) or exc
-
-    # 2. Check enum & code attributes: .grpc_status_code enum or callable/non-callable .code
-    status = getattr(target, "grpc_status_code", None)
-    if status is None and hasattr(target, "code"):
-        try:
-            status = target.code() if callable(target.code) else target.code
-        except Exception:
-            status = None
-
-    name = getattr(status, "name", None)
-    if name:
-        return str(name)
-
-    # 3. Check integer status codes: map raw gRPC integer status codes to canonical enum names
-    if isinstance(status, int):
-        from google.api_core import exceptions
-
-        status = exceptions._INT_TO_GRPC_CODE.get(status, status)
-        return getattr(status, "name", str(status))
-
-    # 4. Fallback: default to the exception class name for standard Python errors
-    return target.__class__.__name__
+_extract_status_code = exceptions._extract_status_code
 
 
 def _extract_error_attributes(exc: Optional[BaseException]) -> dict[str, Any]:
